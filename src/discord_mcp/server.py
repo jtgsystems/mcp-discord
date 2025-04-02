@@ -10,6 +10,7 @@ from discord.ext import commands
 from mcp.server import Server
 from mcp.types import Tool, TextContent, EmptyResult
 from mcp.server.stdio import stdio_server
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("discord-mcp-server")
@@ -23,6 +24,7 @@ if not DISCORD_TOKEN:
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+intents.guilds = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Initialize MCP server
@@ -85,7 +87,68 @@ async def list_tools() -> List[Tool]:
                 "required": ["server_id"]
             }
         ),
-
+        Tool(
+            name="list_all_channels",
+            description="List all channels (text, voice, category, etc.) in a server",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "server_id": {
+                        "type": "string",
+                        "description": "Discord server (guild) ID"
+                    }
+                },
+                "required": ["server_id"]
+            }
+        ),
+        Tool(
+            name="get_channel_info",
+            description="Get detailed information about a specific channel",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "ID of the channel"
+                    }
+                },
+                "required": ["channel_id"]
+            }
+        ),
+        Tool(
+            name="edit_channel",
+            description="Edit a channel's settings (name, topic, position, category)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "ID of the channel to edit"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "New name for the channel"
+                    },
+                    "topic": {
+                        "type": "string",
+                        "description": "New topic for the channel (text channels only)"
+                    },
+                    "position": {
+                        "type": "integer",
+                        "description": "New position for the channel"
+                    },
+                    "category_id": {
+                        "type": "string",
+                        "description": "ID of the new category for the channel"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for the edit"
+                    }
+                },
+                "required": ["channel_id"]
+            }
+        ),
         # Role Management Tools
         Tool(
             name="add_role",
@@ -131,7 +194,98 @@ async def list_tools() -> List[Tool]:
                 "required": ["server_id", "user_id", "role_id"]
             }
         ),
-
+        Tool(
+            name="list_roles",
+            description="List all roles in a server",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "server_id": {
+                        "type": "string",
+                        "description": "Discord server (guild) ID"
+                    }
+                },
+                "required": ["server_id"]
+            }
+        ),
+        Tool(
+            name="create_role",
+            description="Create a new role in a server",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "server_id": {
+                        "type": "string",
+                        "description": "Discord server (guild) ID"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name for the new role"
+                    },
+                    "color": {
+                        "type": "string",
+                        "description": "Hex color code for the role (e.g., #FF0000)"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for creating the role"
+                    }
+                },
+                "required": ["server_id", "name"]
+            }
+        ),
+        Tool(
+            name="delete_role",
+            description="Delete a role from a server",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "server_id": {
+                        "type": "string",
+                        "description": "Discord server (guild) ID"
+                    },
+                    "role_id": {
+                        "type": "string",
+                        "description": "ID of the role to delete"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for deleting the role"
+                    }
+                },
+                "required": ["server_id", "role_id"]
+            }
+        ),
+        Tool(
+            name="edit_role",
+            description="Edit a role's settings (name, color)",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "server_id": {
+                        "type": "string",
+                        "description": "Discord server (guild) ID"
+                    },
+                    "role_id": {
+                        "type": "string",
+                        "description": "ID of the role to edit"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "New name for the role"
+                    },
+                    "color": {
+                        "type": "string",
+                        "description": "New hex color code for the role (e.g., #00FF00)"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for editing the role"
+                    }
+                },
+                "required": ["server_id", "role_id"]
+            }
+        ),
         # Channel Management Tools
         Tool(
             name="create_text_channel",
@@ -177,7 +331,92 @@ async def list_tools() -> List[Tool]:
                 "required": ["channel_id"]
             }
         ),
-
+        # Thread Management Tools
+        Tool(
+            name="create_thread",
+            description="Create a new thread from a message or in a channel",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "ID of the channel to create the thread in (required if message_id not provided)"
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "ID of the message to create the thread from (optional)"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the new thread"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content for the initial message (required for forum channels)"
+                    },
+                    "auto_archive_duration": {
+                        "type": "integer",
+                        "enum": [60, 1440, 4320, 10080],
+                        "description": "Duration in minutes before auto-archiving (60, 1440, 4320, 10080)"
+                    }
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="delete_thread",
+            description="Delete a thread",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "thread_id": {
+                        "type": "string",
+                        "description": "ID of the thread to delete"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for deletion"
+                    }
+                },
+                "required": ["thread_id"]
+            }
+        ),
+        Tool(
+            name="archive_thread",
+            description="Archive a thread",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "thread_id": {
+                        "type": "string",
+                        "description": "ID of the thread to archive"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for archiving"
+                    }
+                },
+                "required": ["thread_id"]
+            }
+        ),
+        Tool(
+            name="unarchive_thread",
+            description="Unarchive a thread",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "thread_id": {
+                        "type": "string",
+                        "description": "ID of the thread to unarchive"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Reason for unarchiving"
+                    }
+                },
+                "required": ["thread_id"]
+            }
+        ),
         # Message Reaction Tools
         Tool(
             name="add_reaction",
@@ -328,222 +567,346 @@ async def list_tools() -> List[Tool]:
                 },
                 "required": ["channel_id", "message_id", "reason"]
             }
-        )
+        ),
+        # Application Command Tools
+        Tool(
+            name="list_global_commands",
+            description="List all global application commands registered for the bot.",
+            inputSchema={"type": "object", "properties": {}} # No input needed
+        ),
+        Tool(
+            name="list_guild_commands",
+            description="List all application commands registered for the bot in a specific guild.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "server_id": {
+                        "type": "string",
+                        "description": "Discord server (guild) ID to list commands for."
+                    }
+                },
+                "required": ["server_id"]
+            }
+        ),
     ]
 
 @app.call_tool()
 @require_discord_client
 async def call_tool(name: str, arguments: Any) -> List[TextContent]:
-    """Handle Discord tool calls."""
-    
-    if name == "send_message":
-        channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
-        message = await channel.send(arguments["content"])
-        return [TextContent(
-            type="text",
-            text=f"Message sent successfully. Message ID: {message.id}"
-        )]
+    """Handle Discord tool calls with error handling."""
+    try:
+        # --- Existing Tool Handlers ---
+        if name == "send_message":
+            channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+            message = await channel.send(arguments["content"])
+            return [TextContent(type="text", text=f"Message sent successfully. Message ID: {message.id}")]
 
-    elif name == "read_messages":
-        channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
-        limit = min(int(arguments.get("limit", 10)), 100)
-        fetch_users = arguments.get("fetch_reaction_users", False)  # Only fetch users if explicitly requested
-        messages = []
-        async for message in channel.history(limit=limit):
-            reaction_data = []
-            for reaction in message.reactions:
-                emoji_str = str(reaction.emoji.name) if hasattr(reaction.emoji, 'name') and reaction.emoji.name else str(reaction.emoji.id) if hasattr(reaction.emoji, 'id') else str(reaction.emoji)
-                reaction_info = {
-                    "emoji": emoji_str,
-                    "count": reaction.count
-                }
-                logger.error(f"Emoji: {emoji_str}")
-                reaction_data.append(reaction_info)
-            messages.append({
-                "id": str(message.id),
-                "author": str(message.author),
-                "content": message.content,
-                "timestamp": message.created_at.isoformat(),
-                "reactions": reaction_data  # Add reactions to message dict
-            })
-        return [TextContent(
-            type="text",
-            text=f"Retrieved {len(messages)} messages:\n\n" + 
-                 "\n".join([
-                     f"{m['author']} ({m['timestamp']}): {m['content']}\n" +
-                     f"Reactions: {', '.join([f'{r['emoji']}({r['count']})' for r in m['reactions']]) if m['reactions'] else 'No reactions'}"
-                     for m in messages
-                 ])
-        )]
-
-    elif name == "get_user_info":
-        user = await discord_client.fetch_user(int(arguments["user_id"]))
-        user_info = {
-            "id": str(user.id),
-            "name": user.name,
-            "discriminator": user.discriminator,
-            "bot": user.bot,
-            "created_at": user.created_at.isoformat()
-        }
-        return [TextContent(
-            type="text",
-            text=f"User information:\n" + 
-                 f"Name: {user_info['name']}#{user_info['discriminator']}\n" +
-                 f"ID: {user_info['id']}\n" +
-                 f"Bot: {user_info['bot']}\n" +
-                 f"Created: {user_info['created_at']}"
-        )]
-
-    elif name == "moderate_message":
-        channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
-        message = await channel.fetch_message(int(arguments["message_id"]))
-        
-        # Delete the message
-        await message.delete(reason=arguments["reason"])
-        
-        # Handle timeout if specified
-        if "timeout_minutes" in arguments and arguments["timeout_minutes"] > 0:
-            if isinstance(message.author, discord.Member):
-                duration = discord.utils.utcnow() + datetime.timedelta(
-                    minutes=arguments["timeout_minutes"]
+        elif name == "read_messages":
+            channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+            limit = min(int(arguments.get("limit", 10)), 100)
+            messages = []
+            async for message in channel.history(limit=limit):
+                reaction_data = [
+                    {"emoji": str(reaction.emoji), "count": reaction.count}
+                    for reaction in message.reactions
+                ]
+                messages.append({
+                    "id": str(message.id),
+                    "author": str(message.author),
+                    "content": message.content,
+                    "timestamp": message.created_at.isoformat(),
+                    "reactions": reaction_data
+                })
+            # Corrected reaction formatting
+            formatted_messages = []
+            for m in messages:
+                reaction_strs = [f"{r['emoji']}({r['count']})" for r in m['reactions']]
+                reactions_text = ', '.join(reaction_strs) if reaction_strs else 'No reactions'
+                formatted_messages.append(
+                    f"{m['author']} ({m['timestamp']}): {m['content']}\n"
+                    f"Reactions: {reactions_text}"
                 )
-                await message.author.timeout(
-                    duration,
-                    reason=arguments["reason"]
+            message_list = "\n".join(formatted_messages)
+            return [TextContent(type="text", text=f"Retrieved {len(messages)} messages:\n\n{message_list}")]
+
+        elif name == "get_user_info":
+            user = await discord_client.fetch_user(int(arguments["user_id"]))
+            user_info = {
+                "id": str(user.id),
+                "name": user.name,
+                "discriminator": user.discriminator,
+                "bot": user.bot,
+                "created_at": user.created_at.isoformat()
+            }
+            return [TextContent(type="text", text=f"User information:\n" + "\n".join(f"{k}: {v}" for k, v in user_info.items()))]
+
+        elif name == "moderate_message":
+            channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+            message = await channel.fetch_message(int(arguments["message_id"]))
+            await message.delete(reason=arguments.get("reason", "Message deleted via MCP"))
+            if "timeout_minutes" in arguments and arguments["timeout_minutes"] > 0:
+                if isinstance(message.author, discord.Member):
+                    duration = discord.utils.utcnow() + datetime.timedelta(minutes=arguments["timeout_minutes"])
+                    await message.author.timeout(duration, reason=arguments["reason"])
+                    return [TextContent(type="text", text=f"Message deleted and user timed out for {arguments['timeout_minutes']} minutes.")]
+            return [TextContent(type="text", text="Message deleted successfully.")]
+
+        elif name == "get_server_info":
+            guild = await discord_client.fetch_guild(int(arguments["server_id"]))
+            info = {
+                "name": guild.name,
+                "id": str(guild.id),
+                "owner_id": str(guild.owner_id),
+                "member_count": guild.member_count,
+                "created_at": guild.created_at.isoformat(),
+                "description": guild.description,
+                "premium_tier": guild.premium_tier,
+                "explicit_content_filter": str(guild.explicit_content_filter)
+            }
+            return [TextContent(type="text", text=f"Server Information:\n" + "\n".join(f"{k}: {v}" for k, v in info.items()))]
+
+        elif name == "list_members":
+            guild = await discord_client.fetch_guild(int(arguments["server_id"]))
+            limit = min(int(arguments.get("limit", 100)), 1000)
+            members = []
+            async for member in guild.fetch_members(limit=limit):
+                members.append({
+                    "id": str(member.id),
+                    "name": member.name,
+                    "nick": member.nick,
+                    "joined_at": member.joined_at.isoformat() if member.joined_at else None,
+                    "roles": [str(role.id) for role in member.roles[1:]]  # Skip @everyone
+                })
+            member_list = "\n".join([f"{m['name']} (ID: {m['id']}, Roles: {', '.join(m['roles'])})" for m in members])
+            return [TextContent(type="text", text=f"Server Members ({len(members)}):\n{member_list}")]
+
+        elif name == "list_all_channels":
+            guild = await discord_client.fetch_guild(int(arguments["server_id"]))
+            logger.info(f"Raw guild.channels content for list_all_channels: {guild.channels}") # Added logging
+            all_channels = [
+                {"name": channel.name, "id": str(channel.id), "type": str(channel.type)}
+                for channel in guild.channels
+            ]
+            channel_list_str = "\n".join([f"- {ch['name']} (ID: {ch['id']}, Type: {ch['type']})" for ch in all_channels])
+            return [TextContent(type="text", text=f"All Channels ({len(all_channels)}):\n{channel_list_str}")]
+
+        elif name == "get_channel_info":
+            channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+            info = {
+                "id": str(channel.id),
+                "name": channel.name,
+                "type": str(channel.type),
+                "position": channel.position,
+                "category_id": str(channel.category_id) if channel.category_id else None,
+                "created_at": channel.created_at.isoformat(),
+            }
+            if isinstance(channel, discord.TextChannel):
+                info["topic"] = channel.topic
+            return [TextContent(type="text", text=f"Channel Information:\n" + "\n".join(f"{k}: {v}" for k, v in info.items()))]
+
+        elif name == "edit_channel":
+            channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+            edit_args = {}
+            if "name" in arguments:
+                edit_args["name"] = arguments["name"]
+            if "topic" in arguments and isinstance(channel, discord.TextChannel):
+                edit_args["topic"] = arguments["topic"]
+            if "position" in arguments:
+                edit_args["position"] = arguments["position"]
+            if "category_id" in arguments:
+                category = channel.guild.get_channel(int(arguments["category_id"]))
+                if category and isinstance(category, discord.CategoryChannel):
+                    edit_args["category"] = category
+            await channel.edit(**edit_args, reason=arguments.get("reason", "Channel edited via MCP"))
+            return [TextContent(type="text", text=f"Channel #{channel.name} (ID: {channel.id}) edited successfully.")]
+
+        elif name == "add_role":
+            guild = await discord_client.fetch_guild(int(arguments["server_id"]))
+            member = await guild.fetch_member(int(arguments["user_id"]))
+            role = guild.get_role(int(arguments["role_id"]))
+            if not role:
+                return [TextContent(type="text", text=f"Role with ID {arguments['role_id']} not found.")]
+            await member.add_roles(role, reason="Role added via MCP")
+            return [TextContent(type="text", text=f"Added role {role.name} to user {member.name}")]
+
+        elif name == "remove_role":
+            guild = await discord_client.fetch_guild(int(arguments["server_id"]))
+            member = await guild.fetch_member(int(arguments["user_id"]))
+            role = guild.get_role(int(arguments["role_id"]))
+            if not role:
+                return [TextContent(type="text", text=f"Role with ID {arguments['role_id']} not found.")]
+            await member.remove_roles(role, reason="Role removed via MCP")
+            return [TextContent(type="text", text=f"Removed role {role.name} from user {member.name}")]
+
+        elif name == "list_roles":
+            guild = await discord_client.fetch_guild(int(arguments["server_id"]))
+            roles = [
+                {"name": role.name, "id": str(role.id), "color": str(role.color)}
+                for role in guild.roles if not role.is_default()  # Exclude @everyone
+            ]
+            role_list_str = "\n".join([f"- {r['name']} (ID: {r['id']}, Color: {r['color']})" for r in roles])
+            return [TextContent(type="text", text=f"Roles ({len(roles)}):\n{role_list_str}")]
+
+        elif name == "create_role":
+            guild = await discord_client.fetch_guild(int(arguments["server_id"]))
+            role_args = {"name": arguments["name"]}
+            if "color" in arguments:
+                try:
+                    role_args["color"] = discord.Color(int(arguments["color"].lstrip('#'), 16))
+                except ValueError:
+                    return [TextContent(type="text", text="Invalid color format. Use hex code (e.g., #FF0000).")]
+            new_role = await guild.create_role(**role_args, reason=arguments.get("reason", "Role created via MCP"))
+            return [TextContent(type="text", text=f"Created role '{new_role.name}' (ID: {new_role.id})")]
+
+        elif name == "delete_role":
+            guild = await discord_client.fetch_guild(int(arguments["server_id"]))
+            role = guild.get_role(int(arguments["role_id"]))
+            if not role:
+                return [TextContent(type="text", text=f"Role with ID {arguments['role_id']} not found.")]
+            await role.delete(reason=arguments.get("reason", "Role deleted via MCP"))
+            return [TextContent(type="text", text=f"Deleted role '{role.name}' (ID: {arguments['role_id']}) successfully.")]
+
+        elif name == "edit_role":
+            guild = await discord_client.fetch_guild(int(arguments["server_id"]))
+            role = guild.get_role(int(arguments["role_id"]))
+            if not role:
+                return [TextContent(type="text", text=f"Role with ID {arguments['role_id']} not found.")]
+            edit_args = {}
+            if "name" in arguments:
+                edit_args["name"] = arguments["name"]
+            if "color" in arguments:
+                try:
+                    edit_args["color"] = discord.Color(int(arguments["color"].lstrip('#'), 16))
+                except ValueError:
+                    return [TextContent(type="text", text="Invalid color format. Use hex code (e.g., #00FF00).")]
+            await role.edit(**edit_args, reason=arguments.get("reason", "Role edited via MCP"))
+            return [TextContent(type="text", text=f"Role '{role.name}' (ID: {role.id}) edited successfully.")]
+
+        elif name == "create_text_channel":
+            guild = await discord_client.fetch_guild(int(arguments["server_id"]))
+            category = None
+            if "category_id" in arguments:
+                category = guild.get_channel(int(arguments["category_id"]))
+            channel = await guild.create_text_channel(
+                name=arguments["name"],
+                category=category,
+                topic=arguments.get("topic"),
+                reason="Channel created via MCP"
+            )
+            return [TextContent(type="text", text=f"Created text channel #{channel.name} (ID: {channel.id})")]
+
+        elif name == "delete_channel":
+            channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+            await channel.delete(reason=arguments.get("reason", "Channel deleted via MCP"))
+            return [TextContent(type="text", text="Deleted channel successfully")]
+
+        elif name == "create_thread":
+            channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+            thread_name = arguments["name"]
+            content = arguments.get("content")
+            auto_archive_duration = arguments.get("auto_archive_duration")
+            reason = arguments.get("reason", "Thread created via MCP")
+
+            if "message_id" in arguments:
+                message = await channel.fetch_message(int(arguments["message_id"]))
+                thread = await message.create_thread(
+                    name=thread_name,
+                    auto_archive_duration=auto_archive_duration,
+                    reason=reason
                 )
-                return [TextContent(
-                    type="text",
-                    text=f"Message deleted and user timed out for {arguments['timeout_minutes']} minutes."
-                )]
-        
-        return [TextContent(
-            type="text",
-            text="Message deleted successfully."
-        )]
+            elif isinstance(channel, discord.ForumChannel):
+                if not content:
+                    return [TextContent(type="text", text="Content is required when creating a thread in a forum channel.")]
+                thread = await channel.create_thread(
+                    name=thread_name,
+                    content=content,
+                    auto_archive_duration=auto_archive_duration,
+                    reason=reason
+                )
+            elif isinstance(channel, discord.TextChannel):
+                thread = await channel.create_thread(
+                    name=thread_name,
+                    auto_archive_duration=auto_archive_duration,
+                    reason=reason
+                )
+            else:
+                return [TextContent(type="text", text="Invalid channel type for creating a thread.")]
+            return [TextContent(type="text", text=f"Created thread '{thread.name}' (ID: {thread.id})")]
 
-    # Server Information Tools
-    elif name == "get_server_info":
-        guild = await discord_client.fetch_guild(int(arguments["server_id"]))
-        info = {
-            "name": guild.name,
-            "id": str(guild.id),
-            "owner_id": str(guild.owner_id),
-            "member_count": guild.member_count,
-            "created_at": guild.created_at.isoformat(),
-            "description": guild.description,
-            "premium_tier": guild.premium_tier,
-            "explicit_content_filter": str(guild.explicit_content_filter)
-        }
-        return [TextContent(
-            type="text",
-            text=f"Server Information:\n" + "\n".join(f"{k}: {v}" for k, v in info.items())
-        )]
+        elif name == "delete_thread":
+            thread = await discord_client.fetch_channel(int(arguments["thread_id"]))
+            if isinstance(thread, discord.Thread):
+                await thread.delete(reason=arguments.get("reason", "Thread deleted via MCP"))
+                return [TextContent(type="text", text=f"Deleted thread '{thread.name}' (ID: {arguments['thread_id']}).")]
+            return [TextContent(type="text", text=f"Channel ID {arguments['thread_id']} is not a thread.")]
 
-    elif name == "list_members":
-        guild = await discord_client.fetch_guild(int(arguments["server_id"]))
-        limit = min(int(arguments.get("limit", 100)), 1000)
-        
-        members = []
-        async for member in guild.fetch_members(limit=limit):
-            members.append({
-                "id": str(member.id),
-                "name": member.name,
-                "nick": member.nick,
-                "joined_at": member.joined_at.isoformat() if member.joined_at else None,
-                "roles": [str(role.id) for role in member.roles[1:]]  # Skip @everyone
-            })
-        
-        return [TextContent(
-            type="text",
-            text=f"Server Members ({len(members)}):\n" + 
-                 "\n".join(f"{m['name']} (ID: {m['id']}, Roles: {', '.join(m['roles'])})" for m in members)
-        )]
+        elif name == "archive_thread":
+            thread = await discord_client.fetch_channel(int(arguments["thread_id"]))
+            if isinstance(thread, discord.Thread):
+                await thread.edit(archived=True, reason=arguments.get("reason", "Thread archived via MCP"))
+                return [TextContent(type="text", text=f"Archived thread '{thread.name}' (ID: {thread.id}).")]
+            return [TextContent(type="text", text=f"Channel ID {arguments['thread_id']} is not a thread.")]
 
-    # Role Management Tools
-    elif name == "add_role":
-        guild = await discord_client.fetch_guild(int(arguments["server_id"]))
-        member = await guild.fetch_member(int(arguments["user_id"]))
-        role = guild.get_role(int(arguments["role_id"]))
-        
-        await member.add_roles(role, reason="Role added via MCP")
-        return [TextContent(
-            type="text",
-            text=f"Added role {role.name} to user {member.name}"
-        )]
+        elif name == "unarchive_thread":
+            thread = await discord_client.fetch_channel(int(arguments["thread_id"]))
+            if isinstance(thread, discord.Thread):
+                await thread.edit(archived=False, reason=arguments.get("reason", "Thread unarchived via MCP"))
+                return [TextContent(type="text", text=f"Unarchived thread '{thread.name}' (ID: {thread.id}).")]
+            return [TextContent(type="text", text=f"Channel ID {arguments['thread_id']} is not a thread.")]
 
-    elif name == "remove_role":
-        guild = await discord_client.fetch_guild(int(arguments["server_id"]))
-        member = await guild.fetch_member(int(arguments["user_id"]))
-        role = guild.get_role(int(arguments["role_id"]))
-        
-        await member.remove_roles(role, reason="Role removed via MCP")
-        return [TextContent(
-            type="text",
-            text=f"Removed role {role.name} from user {member.name}"
-        )]
+        elif name == "add_reaction":
+            channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+            message = await channel.fetch_message(int(arguments["message_id"]))
+            await message.add_reaction(arguments["emoji"])
+            return [TextContent(type="text", text=f"Added reaction {arguments['emoji']} to message")]
 
-    # Channel Management Tools
-    elif name == "create_text_channel":
-        guild = await discord_client.fetch_guild(int(arguments["server_id"]))
-        category = None
-        if "category_id" in arguments:
-            category = guild.get_channel(int(arguments["category_id"]))
-        
-        channel = await guild.create_text_channel(
-            name=arguments["name"],
-            category=category,
-            topic=arguments.get("topic"),
-            reason="Channel created via MCP"
-        )
-        
-        return [TextContent(
-            type="text",
-            text=f"Created text channel #{channel.name} (ID: {channel.id})"
-        )]
+        elif name == "add_multiple_reactions":
+            channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+            message = await channel.fetch_message(int(arguments["message_id"]))
+            for emoji in arguments["emojis"]:
+                await message.add_reaction(emoji)
+            return [TextContent(type="text", text=f"Added reactions: {', '.join(arguments['emojis'])} to message")]
 
-    elif name == "delete_channel":
-        channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
-        await channel.delete(reason=arguments.get("reason", "Channel deleted via MCP"))
-        return [TextContent(
-            type="text",
-            text=f"Deleted channel successfully"
-        )]
+        elif name == "remove_reaction":
+            channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
+            message = await channel.fetch_message(int(arguments["message_id"]))
+            await message.remove_reaction(arguments["emoji"], discord_client.user)
+            return [TextContent(type="text", text=f"Removed reaction {arguments['emoji']} from message")]
 
-    # Message Reaction Tools
-    elif name == "add_reaction":
-        channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
-        message = await channel.fetch_message(int(arguments["message_id"]))
-        await message.add_reaction(arguments["emoji"])
-        return [TextContent(
-            type="text",
-            text=f"Added reaction {arguments['emoji']} to message"
-        )]
+        # Application Command Handlers
+        elif name == "list_global_commands":
+            commands_data = await discord_client.http.get_global_commands()
+            command_list = [f"- {cmd['name']} (ID: {cmd['id']}, Type: {cmd.get('type', 1)})" for cmd in commands_data] # Type 1 is CHAT_INPUT
+            return [TextContent(
+                type="text",
+                text=f"Global Application Commands ({len(command_list)}):\n" + "\n".join(command_list)
+            )]
 
-    elif name == "add_multiple_reactions":
-        channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
-        message = await channel.fetch_message(int(arguments["message_id"]))
-        for emoji in arguments["emojis"]:
-            await message.add_reaction(emoji)
-        return [TextContent(
-            type="text",
-            text=f"Added reactions: {', '.join(arguments['emojis'])} to message"
-        )]
+        elif name == "list_guild_commands":
+            guild_id = int(arguments["server_id"])
+            commands_data = await discord_client.http.get_guild_commands(guild_id)
+            command_list = [f"- {cmd['name']} (ID: {cmd['id']}, Type: {cmd.get('type', 1)})" for cmd in commands_data] # Type 1 is CHAT_INPUT
+            return [TextContent(
+                type="text",
+                text=f"Guild Application Commands for {guild_id} ({len(command_list)}):\n" + "\n".join(command_list)
+            )]
 
-    elif name == "remove_reaction":
-        channel = await discord_client.fetch_channel(int(arguments["channel_id"]))
-        message = await channel.fetch_message(int(arguments["message_id"]))
-        await message.remove_reaction(arguments["emoji"], discord_client.user)
-        return [TextContent(
-            type="text",
-            text=f"Removed reaction {arguments['emoji']} from message"
-        )]
+        raise ValueError(f"Unknown tool: {name}")
 
-    raise ValueError(f"Unknown tool: {name}")
+    except discord.Forbidden:
+        return [TextContent(type="text", text="Bot lacks permission to perform this action. Please check its roles and permissions in the server.")]
+    except discord.NotFound:
+        return [TextContent(type="text", text="Resource not found. Please check the provided IDs (e.g., server_id, channel_id, user_id).")]
+    except ValueError as ve:
+        return [TextContent(type="text", text=f"Value error: {str(ve)}")]
+    except Exception as e:
+        logger.error(f"Error in tool {name}: {str(e)}")
+        return [TextContent(type="text", text=f"An unexpected error occurred: {str(e)}")]
 
 async def main():
     # Start Discord bot in the background
     asyncio.create_task(bot.start(DISCORD_TOKEN))
-    
+
     # Run MCP server
     async with stdio_server() as (read_stream, write_stream):
         await app.run(
