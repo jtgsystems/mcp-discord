@@ -6,8 +6,8 @@ authors = [
     {name = "Hanweg Altimer", email = "hanwegaltimer@outlook.com"},
 ]
 dependencies = [
-    "discord.py>=2.3.0",
-    "mcp>=0.1.0",
+    "discord.py>=2.6.4",
+    "mcp>=1.25.0",
 ]
 requires-python = ">=3.10"
 readme = "README.md"
